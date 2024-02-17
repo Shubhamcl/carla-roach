@@ -401,6 +401,163 @@ class CustomAgent():
         control = carla.VehicleControl(throttle=throttle, steer=steer, brake=brake)
         return control
 
+class CustomAgentDepth(CustomAgent):
+    def __init__(self, path_to_conf_file='config_agent.yaml'):
+        super().__init__(path_to_conf_file)
+
+        sys.path.insert(0,'/home/shubham/Desktop/git/Depth-Anything/')
+        sys.path.insert(1,'/home/shubham/Desktop/git/Depth-Anything/torchhub/facebookresearch_dinov2_main/')
+
+        from depth_anything.util.transform import Resize, NormalizeImage, PrepareForNet
+        
+        # Depth transforms
+        self._depth_transform = T.Compose([
+            Resize(
+                width=518,
+                height=518,
+                resize_target=False,
+                keep_aspect_ratio=True,
+                ensure_multiple_of=14,
+                resize_method='lower_bound',
+                image_interpolation_method=cv2.INTER_CUBIC,
+            ),
+            NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            PrepareForNet(),
+        ])
+
+        # Load Depth model
+        self._depth_model = torch.load('/home/shubham/Desktop/git/Depth-Anything/depth_anything_encoder.t7').eval()
+        self._depth_model.to(self.device)
+
+    def process_obs(self, obs):
+        # Prepare Command
+        # VOID = -1
+        # LEFT = 1
+        # RIGHT = 2
+        # STRAIGHT = 3
+        # LANEFOLLOW = 4
+        # CHANGELANELEFT = 5
+        # CHANGELANERIGHT = 6
+        
+        self.speed_factor = 12.0
+
+        command = obs['gnss']['command'][0]
+        if command < 0:
+            command = 4
+        command -= 1
+        assert command in [0, 1, 2, 3, 4, 5]
+
+        # Make state [Speed only, as default]
+        state_list = []
+        state_list.append(obs['speed']['forward_speed'][0]/self.speed_factor)
+        
+        # Leaderboard needs more states
+        if self.lb_mode:
+            ev_gps = obs['gnss']['gnss']
+            # imu nan bug
+            compass = 0.0 if np.isnan(obs['gnss']['imu'][-1]) else obs['gnss']['imu'][-1]
+
+            gps_point = obs['gnss']['target_gps']
+            target_vec_in_global = gps_util.gps_to_location(gps_point) - gps_util.gps_to_location(ev_gps)
+            ref_rot_in_global = carla.Rotation(yaw=np.rad2deg(compass)-90.0)
+            loc_in_ev = trans_utils.vec_global_to_ref(target_vec_in_global, ref_rot_in_global)
+
+            # Append vec
+            state_list.append(loc_in_ev.x)
+            state_list.append(loc_in_ev.y)
+            # Append cmd
+            cmd_one_hot = [0] * 6
+            cmd_one_hot[command] = 1
+            state_list += cmd_one_hot
+
+        # Make a list for image
+        im_list = []
+         # NOTE: changed from small_central_rgb:
+        im = self._im_transform( cv2.resize(obs['central_rgb'][0]['data'], (224,224)))
+        im = self._im_transform(obs['central_rgb'][0]['data'])
+        im_list.append(im)
+
+        depth_image = torch.Tensor(self._depth_transform({'image': obs['central_rgb'][0]['data']/255.0})['image'])
+        depth_vector = self._depth_model(depth_image.to(self.device))
+        print(depth_vector.shape)
+
+        policy_input = {
+            'im': torch.unsqueeze(torch.squeeze(torch.stack(im_list, dim=1)),0),
+            'state': torch.unsqueeze(torch.tensor(state_list, dtype=torch.float32),0),
+            'depth' : depth_vector
+        }
+
+        # Future turned off, as not training
+        # if self.predict_future:
+        #     policy_input['future'] = torch.squeeze(torch.tensor(obs['future'], dtype=torch.float32))
+        
+        fuse_policy_input = None
+        if self.mid_fusion:
+            # Make a list for image
+            im_list2 = []
+            im2 = self._im_transform(obs['central_rgb'][0]['data'])
+            im_list2.append(im2)
+
+            fuse_policy_input = {
+                'im': torch.unsqueeze(torch.squeeze(torch.stack(im_list2, dim=1)),0),
+                'state': torch.tensor(state_list, dtype=torch.float32)
+            }
+        return policy_input, torch.tensor([command], dtype=torch.int8), fuse_policy_input
+
+
+    def run_step(self, input_data, timestamp):
+        input_data = copy.deepcopy(input_data)
+
+        for im_key in self._im_queue.keys():
+            if len(self._im_queue[im_key]) == 0:
+                for _ in range(self._im_queue[im_key].maxlen):
+                    self._im_queue[im_key].append(input_data[im_key])
+            else:
+                self._im_queue[im_key].append(input_data[im_key])
+
+            input_data[im_key] = [copy.deepcopy(self._im_queue[im_key][i]) for i in self.im_stack_idx]
+        
+        policy_input, command, fusion_input = self.process_obs(input_data)
+
+        # actions, pred_speed = self._policy.forward_branch(command, **policy_input)
+        # Forward 
+        with torch.no_grad():
+
+            command_tensor = command.to(self.device)
+            command_tensor.clamp_(0, self.number_of_branches-1)
+
+            if self.mid_fusion:
+                fusion_input = dict([(k, v.to(self.device)) for k, v in fusion_input.items()])
+                _ = self._preagent._policy.forward_branch(command, **fusion_input)
+                policy_input['mid_fusion'] = torch.unsqueeze(torch.Tensor(holder['join'][0]),0)
+
+            policy_input = dict([(k, v.to(self.device)) for k, v in policy_input.items()])
+            
+            outputs = self._policy(policy_input)
+            actions = self.extract_branch(outputs['action_branches'], command_tensor)
+
+            actions, pred_speed = actions[0].cpu().numpy(), outputs['pred_speed'].item()
+
+            if self.future_step_prediction:
+                actions = actions[:2]
+
+            control = self.process_act(actions)
+
+        self._render_dict = {
+            'policy_input': policy_input,
+            'command': command.cpu(),
+            'action': actions,
+            'pred_speed': pred_speed,
+            'obs_configs': self._obs_configs,
+            'birdview': input_data['birdview']['rendered'],
+            'route_plan': input_data['route_plan'],
+            'central_rgb': input_data['central_rgb'][-1]['data']
+        }
+        self._render_dict = copy.deepcopy(self._render_dict)
+        self.supervision_dict = {}
+        return control
+
+
 # Interface for Benchmark:
 # Takes in config file, and sets something as per config
 # Reset (What are we resetting? Logging?) DONE
