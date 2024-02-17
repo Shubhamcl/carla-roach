@@ -1,0 +1,23 @@
+# @package _group_
+# train town / train weather
+# Small because test on town 1 only
+- env_id: LeaderBoard-v0
+  env_configs:
+    carla_map: Town01
+    routes_group: null
+    weather_group: train_eval
+# - env_id: LeaderBoard-v0
+#   env_configs:
+#     carla_map: Town03
+#     routes_group: null
+#     weather_group: train_eval
+# - env_id: LeaderBoard-v0
+#   env_configs:
+#     carla_map: Town04
+#     routes_group: train
+#     weather_group: train_eval
+# - env_id: LeaderBoard-v0
+#   env_configs:
+#     carla_map: Town06
+#     routes_group: null
+#     weather_group: train_eval

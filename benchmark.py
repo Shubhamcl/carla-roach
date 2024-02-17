@@ -75,21 +75,23 @@ def main(cfg: DictConfig):
     terminal_configs = {}
     agent_names = []
     for ev_id, ev_cfg in cfg.actors.items():
-        agent_names.append(ev_cfg.agent)
-        cfg_agent = cfg.agent[ev_cfg.agent]
-        OmegaConf.save(config=cfg_agent, f='config_agent.yaml')
-        AgentClass = config_utils.load_entry_point(cfg_agent.entry_point)
-        agents_dict[ev_id] = AgentClass('config_agent.yaml')
-        obs_configs[ev_id] = agents_dict[ev_id].obs_configs
+        agent_names.append(ev_cfg.agent) # Only the cilrs name
+        cfg_agent = cfg.agent[ev_cfg.agent] # cilrs.yaml from config.agent folder
+        if cfg.args_ckpt:
+            cfg_agent['ckpt'] = cfg.args_ckpt
+        OmegaConf.save(config=cfg_agent, f='config_agent.yaml')# save cilrs config
+        AgentClass = config_utils.load_entry_point(cfg_agent.entry_point) # Get refernce to agents.cilrs.cilrs_agent:CilrsAgent class
+        agents_dict[ev_id] = AgentClass('config_agent.yaml') # Instantiate this class into agents_dict[hero]
+        obs_configs[ev_id] = agents_dict[ev_id].obs_configs # Put the obs config of cilrs into obs_config[hero]
 
         # get obs_configs from agent
-        reward_configs[ev_id] = OmegaConf.to_container(ev_cfg.reward)
-        terminal_configs[ev_id] = OmegaConf.to_container(ev_cfg.terminal)
+        reward_configs[ev_id] = OmegaConf.to_container(ev_cfg.reward)# Reward config loading
+        terminal_configs[ev_id] = OmegaConf.to_container(ev_cfg.terminal)# Terminal config loading
 
     # check h5 birdview maps have been generated
     config_utils.check_h5_maps(cfg.test_suites, obs_configs, cfg.carla_sh_path)
 
-    # resume env_idx from checkpoint.txt
+    # resume env_idx from checkpoint.txt # RESUME OR NOT
     last_checkpoint_path = f'{hydra.utils.get_original_cwd()}/outputs/checkpoint.txt'
     if cfg.resume and os.path.isfile(last_checkpoint_path):
         with open(last_checkpoint_path, 'r') as f:
@@ -102,7 +104,7 @@ def main(cfg: DictConfig):
         log.info(f'Finished! env_idx: {env_idx}')
         return
 
-    # resume task_idx from ep_stat_buffer_{env_idx}.json
+    # resume task_idx from ep_stat_buffer_{env_idx}.json # RESUME OR NOT AGAIN
     ep_state_buffer_json = f'{hydra.utils.get_original_cwd()}/outputs/ep_stat_buffer_{env_idx}.json'
     if cfg.resume and os.path.isfile(ep_state_buffer_json):
         ep_stat_buffer = json.load(open(ep_state_buffer_json, 'r'))
@@ -111,15 +113,15 @@ def main(cfg: DictConfig):
     else:
         ckpt_task_idx = 0
         ep_stat_buffer = {}
-        for actor_id in agents_dict.keys():
+        for actor_id in agents_dict.keys():# ['hero']
             ep_stat_buffer[actor_id] = []
         log.info(f'Start new env from task_idx {ckpt_task_idx}')
 
     # compose suite_name
-    env_setup = OmegaConf.to_container(cfg.test_suites[env_idx])
+    env_setup = OmegaConf.to_container(cfg.test_suites[env_idx])# Extract sub part of nocrash_dense.yaml
     suite_name = '-'.join(agent_names) + '_' + env_setup['env_id']
     for k in sorted(env_setup['env_configs']):
-        suite_name = suite_name + '_' + str(env_setup['env_configs'][k])
+        suite_name = suite_name + '_' + str(env_setup['env_configs'][k])# make name as in cilrs_NoCrash-v2_Town02_lbc_train_eval
 
     log.info(f"Start Benchmarking! env_idx: {env_idx}, suite_name: {suite_name}")
 
@@ -131,6 +133,7 @@ def main(cfg: DictConfig):
     agents_log_dir.mkdir(parents=True, exist_ok=True)
     video_dir.mkdir(parents=True, exist_ok=True)
 
+    # env_setup['env_id'] = NoCrash-v2, therefore, evn also becomes an instance of carla_gym.envs:NoCrashEnv + CarlaMultiAgentEnv classes
     # make env
     env = gym.make(env_setup['env_id'], obs_configs=obs_configs, reward_configs=reward_configs,
                    terminal_configs=terminal_configs, host=cfg.host, port=cfg.port,

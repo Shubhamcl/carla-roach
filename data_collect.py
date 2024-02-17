@@ -155,7 +155,7 @@ def main(cfg: DictConfig):
     reward_configs = {}
     terminal_configs = {}
     for ev_id, ev_cfg in cfg.actors.items():
-        # initiate driver agent
+        # initiate driver agent, i.e. load class, init config, take obs_config
         cfg_driver = cfg.agent[ev_cfg.driver]
         OmegaConf.save(config=cfg_driver, f='config_driver.yaml')
         DriverAgentClass = config_utils.load_entry_point(cfg_driver.entry_point)
@@ -224,6 +224,13 @@ def main(cfg: DictConfig):
         cfg.wb_project = ckpt_project
         wb_run_name = f'{dataset_root.name}/{dataset_name}'
         im_stack_idx = driver_dict[cfg.ev_id]._env_wrapper.im_stack_idx
+    elif cfg.actors.hero.driver == 'custom':
+        ckpt_project = cfg.agent.custom.wb_run_path.split('/')[1]
+        ckpt_run_id = cfg.agent.custom.wb_run_path.split('/')[2]
+        dataset_name = f'{ckpt_project}/{ckpt_run_id}'
+        cfg.wb_project = ckpt_project
+        wb_run_name = f'{dataset_root.name}/{dataset_name}'
+        im_stack_idx = driver_dict[cfg.ev_id].im_stack_idx
     else:
         dataset_name = 'expert'
         wb_run_name = f'{dataset_root.name}/{dataset_name}'
@@ -243,7 +250,7 @@ def main(cfg: DictConfig):
     # init wandb
     wandb.init(project=cfg.wb_project, name=wb_run_name, group=cfg.wb_group, notes=cfg.wb_notes, tags=cfg.wb_tags,
                id=wb_run_id, resume="allow")
-    wandb.config.update(OmegaConf.to_container(cfg))
+    wandb.config.update(OmegaConf.to_container(cfg), allow_val_change=True)
     wandb.save('./config_agent.yaml')
     with open(wb_checkpoint_path, 'w') as f:
         f.write(wandb.run.id)
