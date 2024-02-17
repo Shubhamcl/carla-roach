@@ -478,8 +478,8 @@ class CustomAgentDepth(CustomAgent):
         im_list.append(im)
 
         depth_image = torch.Tensor(self._depth_transform({'image': obs['central_rgb'][0]['data']/255.0})['image'])
+        depth_image = torch.unsqueeze(depth_image, 0)
         depth_vector = self._depth_model(depth_image.to(self.device))
-        print(depth_vector.shape)
 
         policy_input = {
             'im': torch.unsqueeze(torch.squeeze(torch.stack(im_list, dim=1)),0),
@@ -503,7 +503,6 @@ class CustomAgentDepth(CustomAgent):
                 'state': torch.tensor(state_list, dtype=torch.float32)
             }
         return policy_input, torch.tensor([command], dtype=torch.int8), fuse_policy_input
-
 
     def run_step(self, input_data, timestamp):
         input_data = copy.deepcopy(input_data)
@@ -542,7 +541,8 @@ class CustomAgentDepth(CustomAgent):
                 actions = actions[:2]
 
             control = self.process_act(actions)
-
+        
+        policy_input['depth'] = None
         self._render_dict = {
             'policy_input': policy_input,
             'command': command.cpu(),
