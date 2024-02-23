@@ -227,8 +227,8 @@ class CustomAgent():
         # Make a list for image
         im_list = []
          # NOTE: changed from small_central_rgb:
-        im = self._im_transform( cv2.resize(obs['central_rgb'][0]['data'], (224,224)))
-        im = self._im_transform(obs['central_rgb'][0]['data'])
+        im = self._im_transform( cv2.resize(obs['central_rgb'][0]['data'], (224,224))) # Small Res
+        # im = self._im_transform(obs['central_rgb'][0]['data']) # Full Res
         im_list.append(im)
 
         policy_input = {
