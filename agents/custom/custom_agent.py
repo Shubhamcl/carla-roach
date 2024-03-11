@@ -18,6 +18,7 @@ import carla
 
 import sys
 sys.path.insert(0, '/home/shubham/Desktop/git/etoe_vu/')
+sys.path.insert(1,'/home/shubham/Desktop/git/dinov2/')
 
 # For wrapper imported things
 COLOR_BLACK = (0, 0, 0)
@@ -474,7 +475,7 @@ class CustomAgentDepth(CustomAgent):
         im_list = []
          # NOTE: changed from small_central_rgb:
         im = self._im_transform( cv2.resize(obs['central_rgb'][0]['data'], (224,224)))
-        im = self._im_transform(obs['central_rgb'][0]['data'])
+        # im = self._im_transform(obs['central_rgb'][0]['data'])
         im_list.append(im)
 
         depth_image = torch.Tensor(self._depth_transform({'image': obs['central_rgb'][0]['data']/255.0})['image'])
