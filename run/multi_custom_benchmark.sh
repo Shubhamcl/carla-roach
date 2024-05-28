@@ -3,6 +3,7 @@
 # echo $1
 suit_name=$1
 given_ckpt=$2
+seed=$3
 # lb_small_tt -> small train town train weathers
 # lb_small_nn -> small test town test weathers
 # * To benchmark il agents.
@@ -15,7 +16,7 @@ benchmark () {
   'wb_notes="D0"' \
   test_suites=$suit_name \
   args_ckpt=$given_ckpt \
-  seed=2021 \
+  seed=$seed \
   +wb_sub_group=Dagger0 \
   no_rendering=true \
   carla_sh_path=${CARLA_ROOT}/CarlaUE4.sh
@@ -25,7 +26,7 @@ benchmark () {
 # NO NEED TO MODIFY THE FOLLOWING
 # actiate conda env
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate carla38
+conda activate pyt2
 
 # remove checkpoint files
 rm outputs/checkpoint.txt

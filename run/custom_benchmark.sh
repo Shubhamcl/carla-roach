@@ -11,7 +11,7 @@ benchmark () {
   'wb_group="SeqPenalty2ndIm"' \
   'wb_notes="D0"' \
   test_suites=lb_small_nn \
-  seed=2021 \
+  seed=2023 \
   +wb_sub_group=Dagger0 \
   no_rendering=true \
   carla_sh_path=${CARLA_ROOT}/CarlaUE4.sh
@@ -21,7 +21,7 @@ benchmark () {
 # NO NEED TO MODIFY THE FOLLOWING
 # actiate conda env
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate carla38
+conda activate pyt2
 
 # remove checkpoint files
 rm outputs/checkpoint.txt

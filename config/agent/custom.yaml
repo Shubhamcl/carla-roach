@@ -1,8 +1,8 @@
 # @package _group_
 # ckpt: "/home/shubham/Desktop/logs/etoe_vu/20230220_010526SegVPRenc/models/model_5.t7"
 custom:
-  entry_point: agents.custom.custom_agent:CustomAgentDepth
-  ckpt: "/home/shubham/Desktop/logs/etoe_vu/20240216_211741DepthVector_D1/models/model_16.t7"
+  entry_point: agents.custom.custom_agent:CustomAgent
+  ckpt: "/home/shubham/Desktop/logs/etoe_vu/20240226_010408RoachNet50/models/model_12.t7"
   wb_run_path: null
   wb_ckpt_step: null
   rl_run_path: null

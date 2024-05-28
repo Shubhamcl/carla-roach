@@ -26,10 +26,10 @@
 
 data_collect_dagger () {
   python -u data_collect.py resume=true log_video=false save_to_wandb=false \
-  agent.custom.wb_run_path=iccv21-roach/trained-models/second_dagger \
+  agent.custom.wb_run_path=iccv21-roach/trained-models/first_dagger \
   wb_group=first_dagger \
   test_suites=lb_data \
-  dataset_root=/media/shubham/data_nvme/Datasets/Daggers/depthvectorD2/ \
+  dataset_root=/media/shubham/data_nvme/Datasets/Daggers/RoachNet50D1/ \
   actors.hero.coach=ppo \
   agent.ppo.wb_run_path=iccv21-roach/trained-models/1929isj0 \
   agent.ppo.wb_ckpt_step=null \
